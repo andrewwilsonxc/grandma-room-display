@@ -84,8 +84,8 @@
 
   <script>
     // Global refresh intervals (ms)
-    const REFRESH_INTERVAL = 10000; // 10 seconds (default)
-    const OFFLINE_RETRY_INTERVAL = 2000; // 2 seconds (configurable)
+    const REFRESH_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours (default)
+    const OFFLINE_RETRY_INTERVAL = 60 * 1000; // 60 seconds (configurable)
     let offlineState = false;
 
     async function isOnline() {
