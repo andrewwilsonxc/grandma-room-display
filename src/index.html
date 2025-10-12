@@ -10,21 +10,44 @@
       padding: 0;
       display: flex;
       flex-direction: column;
-      background: #000;  /* white background for daytime readability */
+      background: #000;
       font-family: sans-serif;
+    }
+
+    #datetime-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: auto;
+      width: 81.6203703704%;
+      padding: 40px;
+      background: #fff;
+      font-weight: bold;
+      flex-shrink: 0;
     }
 
     #datetime {
       text-align: center;
-      font-size: 4em; /* Large for distance viewing */
-      padding: 40px;
-      background: #fff;
-      flex-shrink: 0;
-      background: #fff;
+      font-size: 4em;
       color: #000;
-      margin: auto;
-      width: 81.6203703704%;
-      font-weight: bold;
+    }
+
+    #offline-badge {
+      display: inline-flex;
+      align-items: center;
+      background: #e53935;
+      color: #fff;
+      font-size: 1.5em;
+      margin-left: 24px;
+      padding: 0 24px;
+      border-radius: 999px;
+      font-weight: 600;
+      height: 2.2em;
+      box-shadow: 0 2px 8px rgba(229,57,53,0.15);
+      letter-spacing: 0.05em;
+      border: none;
+      vertical-align: middle;
+      user-select: none;
     }
 
     .iframe-wrapper {
@@ -41,21 +64,14 @@
       height: calc(100% + 36px); /* extends downward */
       border: none;
     }
-
-    #offline-badge {
-      background: red;
-      color: white;
-      font-size: 0.5em;
-      margin-left: 20px;
-      padding: 8px 16px;
-      border-radius: 8px;
-      vertical-align: middle;
-    }
   </style>
 </head>
 <body>
 
-  <div id="datetime"></div>
+  <div id="datetime-container">
+    <span id="datetime"></span>
+    <!-- Badge will be injected here -->
+  </div>
 
   <div class="iframe-wrapper">
     <iframe 
@@ -67,9 +83,9 @@
   </div>
 
   <script>
-    // Global refresh interval (ms)
+    // Global refresh intervals (ms)
     const REFRESH_INTERVAL = 10000; // 10 seconds (default)
-    let backoff = 2000; // initial backoff (2s)
+    const OFFLINE_RETRY_INTERVAL = 2000; // 2 seconds (configurable)
     let offlineState = false;
 
     async function isOnline() {
@@ -92,24 +108,21 @@
       };
       const datetimeElem = document.getElementById('datetime');
       datetimeElem.textContent = now.toLocaleString(undefined, options);
+
       // Show/hide offline badge
+      const container = document.getElementById('datetime-container');
       let badge = document.getElementById('offline-badge');
       if (offlineState) {
         if (!badge) {
           badge = document.createElement('span');
           badge.id = 'offline-badge';
           badge.textContent = 'Offline';
-          badge.style.background = 'red';
-          badge.style.color = 'white';
-          badge.style.fontSize = '0.5em';
-          badge.style.marginLeft = '20px';
-          badge.style.padding = '8px 16px';
-          badge.style.borderRadius = '8px';
-          badge.style.verticalAlign = 'middle';
-          datetimeElem.parentNode.insertBefore(badge, datetimeElem.nextSibling);
+          container.appendChild(badge);
         }
-      } else if (badge) {
-        badge.remove();
+      } else {
+        if (badge) {
+          badge.remove();
+        }
       }
     }
     setInterval(updateDateTime, 1000);
@@ -135,25 +148,22 @@
       wrapper.appendChild(newIframe);
 
       newIframe.addEventListener('load', () => {
-        // Swap once the new iframe is ready
         oldIframe.remove();
         newIframe.style.opacity = '1';
       });
-
     }
 
     async function safeRefreshIframe() {
       const online = await isOnline();
+      offlineState = !online;
+      // Update badge immediately
+      updateDateTime();
+
       if (!online) {
-        offlineState = true;
         console.warn('Offline detected — skipping iframe refresh');
-        // Exponential backoff, capped at REFRESH_INTERVAL
-        backoff = Math.min(backoff * 2, REFRESH_INTERVAL);
-        setTimeout(safeRefreshIframe, backoff);
+        setTimeout(safeRefreshIframe, OFFLINE_RETRY_INTERVAL);
         return;
       }
-      offlineState = false;
-      backoff = 2000; // reset backoff on success
       refreshIframeSmooth();
       setTimeout(safeRefreshIframe, REFRESH_INTERVAL);
     }
