@@ -41,6 +41,16 @@
       height: calc(100% + 36px); /* extends downward */
       border: none;
     }
+
+    #offline-badge {
+      background: red;
+      color: white;
+      font-size: 0.5em;
+      margin-left: 20px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      vertical-align: middle;
+    }
   </style>
 </head>
 <body>
@@ -57,16 +67,19 @@
   </div>
 
   <script>
+    // Global refresh interval (ms)
+    const REFRESH_INTERVAL = 10000; // 10 seconds (default)
+    let backoff = 2000; // initial backoff (2s)
+    let offlineState = false;
 
     async function isOnline() {
-        try {
-          const response = await fetch('./online.html', { cache: 'no-store' });
-          return response.ok;
-        } catch {
-          return false;
-        }
+      try {
+        const response = await fetch('./online.html', { cache: 'no-store' });
+        return response.ok;
+      } catch {
+        return false;
+      }
     }
-
 
     function updateDateTime() {
       const now = new Date();
@@ -77,11 +90,30 @@
         hour: '2-digit', 
         minute: '2-digit', 
       };
-      document.getElementById('datetime').textContent = now.toLocaleString(undefined, options);
+      const datetimeElem = document.getElementById('datetime');
+      datetimeElem.textContent = now.toLocaleString(undefined, options);
+      // Show/hide offline badge
+      let badge = document.getElementById('offline-badge');
+      if (offlineState) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.id = 'offline-badge';
+          badge.textContent = 'Offline';
+          badge.style.background = 'red';
+          badge.style.color = 'white';
+          badge.style.fontSize = '0.5em';
+          badge.style.marginLeft = '20px';
+          badge.style.padding = '8px 16px';
+          badge.style.borderRadius = '8px';
+          badge.style.verticalAlign = 'middle';
+          datetimeElem.parentNode.insertBefore(badge, datetimeElem.nextSibling);
+        }
+      } else if (badge) {
+        badge.remove();
+      }
     }
     setInterval(updateDateTime, 1000);
     updateDateTime();
-
 
     function refreshIframeSmooth() {
       const oldIframe = document.querySelector('.iframe-wrapper iframe');
@@ -108,27 +140,26 @@
         newIframe.style.opacity = '1';
       });
 
-      newIframe.addEventListener('error', () => {
-        console.log("iframe error");
-        // Swap once the new iframe is ready
-        //oldIframe.remove();
-        //newIframe.style.opacity = '1';
-      });
     }
 
     async function safeRefreshIframe() {
       const online = await isOnline();
       if (!online) {
+        offlineState = true;
         console.warn('Offline detected — skipping iframe refresh');
+        // Exponential backoff, capped at REFRESH_INTERVAL
+        backoff = Math.min(backoff * 2, REFRESH_INTERVAL);
+        setTimeout(safeRefreshIframe, backoff);
         return;
       }
+      offlineState = false;
+      backoff = 2000; // reset backoff on success
       refreshIframeSmooth();
+      setTimeout(safeRefreshIframe, REFRESH_INTERVAL);
     }
 
-    // Refresh every 6 hours
-    setInterval(safeRefreshIframe, 10000 /*6 * 60 * 60 * 1000*/);
-
-
+    // Start the refresh loop
+    setTimeout(safeRefreshIframe, REFRESH_INTERVAL);
   </script>
 
 </body>
